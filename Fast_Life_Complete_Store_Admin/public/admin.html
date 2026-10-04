@@ -1,0 +1,29 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FAST LIFE Admin</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080808;color:#eee;font-family:Arial,sans-serif}.wrap{width:min(1100px,calc(100% - 30px));margin:auto}header{padding:25px 0;border-bottom:1px solid #252525;display:flex;justify-content:space-between;align-items:center}.logo{width:150px}.btn{background:#eee;color:#080808;border:0;padding:11px 15px;font-weight:700;cursor:pointer}.danger{background:#300;color:#fff}.panel{background:#101010;border:1px solid #222;padding:24px;margin:25px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}label{font-size:11px;color:#999;display:block;margin-bottom:6px}input,textarea,select{width:100%;background:#080808;color:#fff;border:1px solid #333;padding:12px}textarea{min-height:90px}.products{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.product{border:1px solid #282828;padding:15px}.product img{width:100%;height:180px;object-fit:cover;background:#171717}.row{display:flex;gap:10px;align-items:center;justify-content:space-between}.muted{color:#888;font-size:12px}.login{max-width:420px;margin:15vh auto}.hidden{display:none}@media(max-width:750px){.products,.grid{grid-template-columns:1fr}}
+</style></head><body>
+<div class="wrap">
+<header><img class="logo" src="/fast-life-logo-white.png"><div><button class="btn" onclick="showForm()">+ Produkt</button> <button class="btn danger" onclick="logout()">Logout</button></div></header>
+<div id="login" class="panel login"><h2>FAST LIFE Admin</h2><p class="muted">Produkte, Preise und Fotos verwalten.</p><label>Benutzername</label><input id="user"><label>Passwort</label><input id="pass" type="password"><br><br><button class="btn" onclick="login()">Einloggen</button><p id="err" class="muted"></p></div>
+<div id="app" class="hidden">
+<div id="form" class="panel hidden"><h2 id="formTitle">Produkt</h2><input type="hidden" id="id">
+<div class="grid"><div><label>Name</label><input id="name"></div><div><label>Slug</label><input id="slug"></div><div><label>Kategorie</label><select id="category"><option>T-Shirt</option><option>Hoodie</option><option>Cap</option></select></div><div><label>Preis in €</label><input id="price" type="number" step="0.01"></div></div><br><label>Beschreibung</label><textarea id="desc"></textarea><br><label>Produktfoto</label><input id="file" type="file" accept="image/*"><br><br><div><button class="btn" onclick="save()">Speichern</button> <button class="btn" onclick="hideForm()">Abbrechen</button></div></div>
+<div class="panel"><div class="row"><h2>Produkte</h2><span class="muted">Änderungen erscheinen direkt im Shop.</span></div><div id="products" class="products"></div></div>
+<div class="panel"><h2>Bestellungen</h2><div id="orders" class="muted">Lade…</div></div>
+</div></div>
+<script>
+let editing=null, products=[];
+const €=c=>(c/100).toFixed(2).replace('.',',')+' €';
+async function api(url,opt={}){const r=await fetch(url,opt);const d=await r.json();if(!r.ok)throw Error(d.error||'Fehler');return d}
+async function login(){try{await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user.value,password:pass.value})});location.reload()}catch(e){err.textContent=e.message}}
+async function logout(){await api('/api/admin/logout',{method:'POST'});location.reload()}
+async function boot(){const m=await api('/api/admin/me');if(!m.admin)return;login.style.display='none';app.classList.remove('hidden');load()}
+async function load(){products=await api('/api/admin/products');render();orders.innerHTML=(await api('/api/admin/orders')).map(o=>`<div class="row" style="padding:10px 0;border-bottom:1px solid #222"><span>#${o.id} · ${o.email||'keine E-Mail'}</span><span>${€(o.amount_cents)} · ${o.status}</span></div>`).join('')||'Noch keine Bestellungen.'}
+function render(){productsEl=products.map(p=>`<div class="product"><img src="${p.image||'/fast-life-logo-white.png'}"><h3>${p.name}</h3><div class="muted">${p.category} · ${€(p.price_cents)}</div><p class="muted">${p.description||''}</p><button class="btn" onclick="edit(${p.id})">Bearbeiten</button> <button class="btn danger" onclick="del(${p.id})">Löschen</button></div>`).join('');document.getElementById('products').innerHTML=productsEl}
+function showForm(){editing=null;formTitle.textContent='Neues Produkt';form.classList.remove('hidden');id.value='';name.value='';slug.value='';price.value='';desc.value='';file.value=''}
+function hideForm(){form.classList.add('hidden')}
+function edit(pid){const p=products.find(x=>x.id===pid);editing=p;formTitle.textContent='Produkt bearbeiten';form.classList.remove('hidden');id.value=p.id;name.value=p.name;slug.value=p.slug;category.value=p.category;price.value=(p.price_cents/100).toFixed(2);desc.value=p.description||'';file.value=''}
+async function save(){try{let image=editing?.image||'';if(file.files[0]){const fd=new FormData();fd.append('image',file.files[0]);image=(await api('/api/admin/upload',{method:'POST',body:fd})).url}const body={slug:slug.value,name:name.value,category:category.value,price:Number(price.value),description:desc.value,image};await api(editing?'/api/admin/products/'+editing.id:'/api/admin/products',{method:editing?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});hideForm();load()}catch(e){alert(e.message)}}
+async function del(pid){if(!confirm('Produkt wirklich löschen?'))return;await api('/api/admin/products/'+pid,{method:'DELETE'});load()}
+boot();
+</script></body></html>
